@@ -1,3 +1,4 @@
+# 结构相似性指数 (SSIM): 一种更先进的方法，用于测量两张图片的视觉结构、亮度和对比度的相似度。SSIM的值在0到1之间，值越接近1，表示图片越相似。对于需要高度视觉相似度的应用，SSIM可能是更好的选择。
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as compare_ssim

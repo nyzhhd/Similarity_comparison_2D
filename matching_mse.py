@@ -1,3 +1,4 @@
+#均方误差 (MSE): 一种简单直观的方法，通过计算两张图片对应像素之间的平方差的平均值来衡量它们的差异。MSE值越低，表明图片越相似。
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as compare_ssim
@@ -109,14 +110,21 @@ def find_defects_by_comparison_Bolt(original_image,threshold):
         return have_defect,mse_avg
 
 
+def add_jitter(values, jitter_strength=0.1):
+    # 为垂直坐标添加随机偏移量
+    jitter = jitter_strength * (np.random.rand(len(values)) - 0.5)
+    return np.array(values) + jitter
+
 if __name__ == "__main__":
     threshold = 0.522
-    gk_folder = 'gk'              #----------------------------------------------------------------# 需要检测图像的文件夹
-    defect_count = 0
-    total_images = 0
+    gk_folder = 'gk'  # 需要检测图像的文件夹
+    defect_data = []  # 收集有缺陷的图像的相似度数据
+    no_defect_data = []  # 收集无缺陷的图像的相似度数据
 
-    # 时间更新
     start_time = time.time()
+    total_images = 0
+    defect_count = 0
+
     for filename in os.listdir(gk_folder):
         print(f'+++++++++++++++++{total_images}+++++++++++++++++++++++')
         image_path = os.path.join(gk_folder, filename)
@@ -124,10 +132,16 @@ if __name__ == "__main__":
         have_defect, mse_sim = find_defects_by_comparison_Bolt(original_image, threshold)
         total_images += 1
 
-        plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))
-        plt.title(f"{filename} - {'have defect' if have_defect else 'no defect'} - {mse_sim}")
-        plt.show()
+        # 根据文件名判断图像是否真实有缺陷
+        real_defect = filename.startswith("F")
 
+        # 收集数据
+        if real_defect:
+            defect_data.append(mse_sim)
+        else:
+            no_defect_data.append(mse_sim)
+
+        # 打印检测结果
         if have_defect:
             defect_count += 1
             print(f"{image_path} 检测到缺陷")
@@ -138,4 +152,33 @@ if __name__ == "__main__":
     single_time = (end_time - start_time) / total_images
     print(gk_folder, f"检测出{defect_count}/{total_images}个图片有缺陷，每张图片用时{single_time}s")
 
+    # 添加轻微的随机偏移量
+    defect_labels_jittered = add_jitter([1] * len(defect_data))
+    no_defect_labels_jittered = add_jitter([0] * len(no_defect_data))
+
+    # 绘制散点图
+    plt.figure(figsize=(10, 6))  # 调整图形大小
+    defect_jitter = add_jitter([1] * len(defect_data))
+    no_defect_jitter = add_jitter([0] * len(no_defect_data))
+
+    # 绘制所有点
+    plt.scatter(defect_data, defect_jitter, color='red', label='Real Defect')
+    plt.scatter(no_defect_data, no_defect_jitter, color='green', label='No Real Defect')
+
+    # 标记代表性点的标签
+    # 例如，选择每种类别中MSE最高和最低的点
+    if defect_data:
+        plt.text(defect_data[0], defect_jitter[0], f'{defect_data[0]:.2f}', fontsize=8, ha='right')
+        plt.text(defect_data[-1], defect_jitter[-1], f'{defect_data[-1]:.2f}', fontsize=8, ha='right')
+
+    if no_defect_data:
+        plt.text(no_defect_data[0], no_defect_jitter[0], f'{no_defect_data[0]:.2f}', fontsize=8, ha='right')
+        plt.text(no_defect_data[-1], no_defect_jitter[-1], f'{no_defect_data[-1]:.2f}', fontsize=8, ha='right')
+
+    plt.axvline(x=threshold, color='blue', linestyle='--', label='Threshold')
+    plt.xlabel('MSE Similarity')
+    plt.ylabel('Real Defect Presence (Jittered)')
+    plt.title('Real Defect Detection Based on MSE Similarity')
+    plt.legend()
+    plt.show()
         
