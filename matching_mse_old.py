@@ -1,10 +1,26 @@
-# 结构相似性指数 (SSIM): 一种更先进的方法，用于测量两张图片的视觉结构、亮度和对比度的相似度。SSIM的值在0到1之间，值越接近1，表示图片越相似。对于需要高度视觉相似度的应用，SSIM可能是更好的选择。
+#均方误差 (MSE): 一种简单直观的方法，通过计算两张图片对应像素之间的平方差的平均值来衡量它们的差异。MSE值越低，表明图片越相似。
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as compare_ssim
 import time
 import matplotlib.pyplot as plt
 import os
+
+
+def mse(imageA, imageB):
+    '''
+    计算两个图像之间的规范化均方误差。
+    输入
+    imageA: 第一个图像
+    imageB: 第二个图像
+    输出
+    similarity: 规范化的均方误差，作为相似度度量，范围在0到1之间。
+    '''
+    err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
+    err /= float(imageA.shape[0] * imageA.shape[1])
+    max_err = 255.0 ** 2
+    similarity = 1 - (err / max_err)
+    return similarity
 
 def find_defects_by_comparison_sift(original_image,template_image):
     '''
@@ -19,14 +35,48 @@ def find_defects_by_comparison_sift(original_image,template_image):
         # 如果尺寸不同，将第二张图片调整为与第一张图片相同的尺寸
         template_image = cv2.resize(template_image, (original_image.shape[1], original_image.shape[0]))
 
+    # 使用SIFT特征提取器
+    sift = cv2.SIFT_create()
+    # 提取特征点和描述符
+    keypoints1, descriptors1 = sift.detectAndCompute(original_image, None)
+    keypoints2, descriptors2 = sift.detectAndCompute(template_image, None)
+    # 使用FLANN匹配器进行特征匹配
+    flann = cv2.FlannBasedMatcher({'algorithm': 0, 'trees': 5}, {})
+
+    #先看两幅图片有多少个特征匹配点
+    matches = flann.knnMatch(descriptors1, descriptors2, k=2)
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.7 * n.distance:
+            good_matches.append(m)
+
+    # 在原始图像中绘制匹配的特征
+    matched_image = cv2.drawMatches(original_image, keypoints1, template_image, keypoints2, good_matches, None)
+
+    #根据特征匹配来使得第二幅图像与第一幅图像对齐
+    if len(good_matches) >= 4:
+        src_pts = np.float32([keypoints1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        M, _ = cv2.estimateAffine2D(src_pts, dst_pts)
+        # 应用变换矩阵以对齐第二幅图像
+        template_image= cv2.warpAffine(template_image, M, (template_image.shape[1], template_image.shape[0]))
+
     # 灰度化
-    gray_image1 = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
-    gray_image2 = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
+    original_image= cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+    template_image = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
+    # 直方图均衡化
+    original_image= cv2.equalizeHist(original_image)
+    template_image = cv2.equalizeHist(template_image)
+
     # 计算相似性度量
+    mse_sim= mse(original_image, template_image)#------------------------------------- 利用mse函数比较两个图的结构相似度
 
-    ssim = compare_ssim(gray_image1, gray_image2)  #------------------------------------- 利用compare_ssim函数比较两个图的结构相似度
+    # 显示结果图像
+    # cv2.imshow("Matched Image Sift", matched_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    return mse_sim
 
-    return ssim
 
 def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     have_defect = False
@@ -65,7 +115,7 @@ if __name__ == "__main__":
     FP = 0  # 假正例
     TN = 0  # 真负例
     FN = 0  # 假负例
-    threshold = 0.35
+    threshold = 0.93
     gk_folder = 'gk'  # 需要检测图像的文件夹
     defect_data = []  # 收集有缺陷的图像的相似度数据
     no_defect_data = []  # 收集无缺陷的图像的相似度数据
@@ -141,10 +191,9 @@ if __name__ == "__main__":
         plt.text(no_defect_data[-1], no_defect_jitter[-1], f'{no_defect_data[-1]:.2f}', fontsize=8, ha='right')
 
     plt.axvline(x=threshold, color='blue', linestyle='--', label='Threshold')
-    plt.xlabel('SSIM Similarity')
+    plt.xlabel('MSE Similarity')
     plt.ylabel('Real Defect Presence (Jittered)')
-    plt.title('Real Defect Detection Based on SSIM Similarity')
+    plt.title('Real Defect Detection Based on MSE Similarity')
     plt.legend()
     plt.show()
-
         

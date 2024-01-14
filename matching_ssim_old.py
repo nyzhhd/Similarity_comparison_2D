@@ -14,18 +14,59 @@ def find_defects_by_comparison_sift(original_image,template_image):
     输出
     ssim: original_image和template_image的相似度，值为0-1。
     '''
+    # original_image = cv2.medianBlur(original_image, 3)
+    # template_image = cv2.medianBlur(template_image, 3)
+    # #调整亮度和对比度
+    # original_image = cv2.convertScaleAbs(original_image, alpha=1.2, beta=20)
+    # template_image = cv2.convertScaleAbs(template_image, alpha=1.2, beta=20)
     # 确保两张图片具有相同的尺寸
     if original_image.shape != template_image.shape:
         # 如果尺寸不同，将第二张图片调整为与第一张图片相同的尺寸
         template_image = cv2.resize(template_image, (original_image.shape[1], original_image.shape[0]))
 
+    # # 使用SIFT特征提取器
+    # sift = cv2.SIFT_create()
+    # # 提取特征点和描述符
+    # keypoints1, descriptors1 = sift.detectAndCompute(original_image, None)
+    # keypoints2, descriptors2 = sift.detectAndCompute(template_image, None)
+    # # 使用FLANN匹配器进行特征匹配
+    # flann = cv2.FlannBasedMatcher({'algorithm': 0, 'trees': 5}, {})
+    #
+    # #先看两幅图片有多少个特征匹配点
+    # matches = flann.knnMatch(descriptors1, descriptors2, k=2)
+    # good_matches = []
+    # for m, n in matches:
+    #     if m.distance < 0.7 * n.distance:
+    #         good_matches.append(m)
+    #
+    # # 在原始图像中绘制匹配的特征
+    # matched_image = cv2.drawMatches(original_image, keypoints1, template_image, keypoints2, good_matches, None)
+    #
+    # #根据特征匹配来使得第二幅图像与第一幅图像对齐
+    # if len(good_matches) >= 4:
+    #     src_pts = np.float32([keypoints1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    #     dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    #     M, _ = cv2.estimateAffine2D(src_pts, dst_pts)
+    #     # 应用变换矩阵以对齐第二幅图像
+    #     image2_stabilized = cv2.warpAffine(template_image, M, (template_image.shape[1], template_image.shape[0]))
+    # else:
+    #     image2_stabilized = template_image
+
     # 灰度化
     gray_image1 = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
     gray_image2 = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
+    # 直方图均衡化
+    # gray_image1 = cv2.equalizeHist(gray_image1)
+    # gray_image2 = cv2.equalizeHist(gray_image2)
+
     # 计算相似性度量
 
     ssim = compare_ssim(gray_image1, gray_image2)  #------------------------------------- 利用compare_ssim函数比较两个图的结构相似度
 
+    # 显示结果图像
+    # cv2.imshow("Matched Image Sift", matched_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     return ssim
 
 def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
@@ -52,7 +93,7 @@ def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     print("平均相似度：", mse_avg)
 
     have_defect = mse_avg <= threshold
-    return have_defect, mse_max
+    return have_defect, mse_avg
 
 
 def add_jitter(values, jitter_strength=0.1):
