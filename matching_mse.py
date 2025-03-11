@@ -28,52 +28,12 @@ def find_defects_by_comparison_sift(original_image,template_image):
     original_image: 巡检时候拍摄的图像，即待检测图像
     template_image: 模板库的模板图像
     输出
-    ssim: original_image和template_image的相似度，值为0-1。
+    mse_sim: original_image和template_image的相似度，值为0-1。
     '''
-    # original_image = cv2.medianBlur(original_image, 3)
-    # template_image = cv2.medianBlur(template_image, 3)
-    # #调整亮度和对比度
-    # original_image = cv2.convertScaleAbs(original_image, alpha=1.2, beta=20)
-    # template_image = cv2.convertScaleAbs(template_image, alpha=1.2, beta=20)
     # 确保两张图片具有相同的尺寸
     if original_image.shape != template_image.shape:
         # 如果尺寸不同，将第二张图片调整为与第一张图片相同的尺寸
         template_image = cv2.resize(template_image, (original_image.shape[1], original_image.shape[0]))
-
-    # 使用SIFT特征提取器
-    # sift = cv2.SIFT_create()
-    # # 提取特征点和描述符
-    # keypoints1, descriptors1 = sift.detectAndCompute(original_image, None)
-    # keypoints2, descriptors2 = sift.detectAndCompute(template_image, None)
-    # # 使用FLANN匹配器进行特征匹配
-    # flann = cv2.FlannBasedMatcher({'algorithm': 0, 'trees': 5}, {})
-    #
-    # #先看两幅图片有多少个特征匹配点
-    # matches = flann.knnMatch(descriptors1, descriptors2, k=2)
-    # good_matches = []
-    # for m, n in matches:
-    #     if m.distance < 0.7 * n.distance:
-    #         good_matches.append(m)
-    #
-    # # 在原始图像中绘制匹配的特征
-    # matched_image = cv2.drawMatches(original_image, keypoints1, template_image, keypoints2, good_matches, None)
-    #
-    # #根据特征匹配来使得第二幅图像与第一幅图像对齐
-    # if len(good_matches) >= 4:
-    #     src_pts = np.float32([keypoints1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-    #     dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-    #     M, _ = cv2.estimateAffine2D(src_pts, dst_pts)
-    #     # 应用变换矩阵以对齐第二幅图像
-    #     image2_stabilized = cv2.warpAffine(template_image, M, (template_image.shape[1], template_image.shape[0]))
-    # else:
-    #     image2_stabilized = template_image
-
-    # 灰度化
-    # gray_image1 = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
-    # gray_image2 = cv2.cvtColor(image2_stabilized, cv2.COLOR_BGR2GRAY)
-    # 直方图均衡化
-    # gray_image1 = cv2.equalizeHist(gray_image1)
-    # gray_image2 = cv2.equalizeHist(gray_image2)
 
     # 计算相似性度量
     mse_sim= mse(original_image, template_image  )#------------------------------------- 利用mse函数比较两个图的结构相似度
@@ -87,7 +47,7 @@ def find_defects_by_comparison_sift(original_image,template_image):
 
 def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     have_defect = False
-    gk_norm_folder = 'gk_mb_20231113'  # 模板库路径
+    gk_norm_folder = 'template_images'#'gk_mb_20231113'  # 模板库路径
     mse_list = []
     for filename in os.listdir(gk_norm_folder):
         image_norm_path = os.path.join(gk_norm_folder, filename)
@@ -108,8 +68,8 @@ def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     print("最大相似度：", mse_max)
     print("平均相似度：", mse_avg)
 
-    have_defect = mse_avg <= threshold
-    return have_defect, mse_avg
+    have_defect = mse_max <= threshold
+    return have_defect, mse_max
 
 
 def add_jitter(values, jitter_strength=0.1):
@@ -122,8 +82,8 @@ if __name__ == "__main__":
     FP = 0  # 假正例
     TN = 0  # 真负例
     FN = 0  # 假负例
-    threshold = 0.89
-    gk_folder = 'gk'  # 需要检测图像的文件夹
+    threshold = 0.945
+    gk_folder = 'other_images'  # 需要检测图像的文件夹
     defect_data = []  # 收集有缺陷的图像的相似度数据
     no_defect_data = []  # 收集无缺陷的图像的相似度数据
 
@@ -167,12 +127,17 @@ if __name__ == "__main__":
     single_time = (end_time - start_time) / total_images
     print(f'\n+++++++++++++++++++SUM++++++++++++++++++++++++')
     print(gk_folder, f"文件夹检测出{defect_count}/{total_images}个图片有缺陷\n每张图片用时{single_time}s")
-    # 计算TPR和FPR
-    TPR = TP / (TP + FN) if (TP + FN) != 0 else 0
-    FPR = FP / (FP + TN) if (FP + TN) != 0 else 0
+    # 计算 accuracy,Precision、Recall 和 F1 Score
+    accuracy = (TP + TN) / (TP + FP + TN + FN) if (TP + FP + TN + FN) != 0 else 0
+    precision = TP / (TP + FP) if (TP + FP) != 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) != 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) != 0 else 0
 
-    print(f"正确检出率（TPR）: {TPR:.2f}")
-    print(f"误检率（FPR）: {FPR:.2f}")
+    # 打印评估指标
+    print("准确率（Accuracy）: {:.2f}".format(accuracy))
+    print("精确度（Precision）: {:.2f}".format(precision))
+    print("召回率（Recall）: {:.2f}".format(recall))
+    print("F1 分数（F1 Score）: {:.2f}".format(f1))
 
     # 添加轻微的随机偏移量
     defect_labels_jittered = add_jitter([1] * len(defect_data))

@@ -30,7 +30,7 @@ def find_defects_by_comparison_sift(original_image,template_image):
 
 def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     have_defect = False
-    gk_norm_folder = 'gk_mb_20231113'  # 模板库路径
+    gk_norm_folder = 'template_images'#'gk_mb_20231113'  # 模板库路径
     mse_list = []
     for filename in os.listdir(gk_norm_folder):
         image_norm_path = os.path.join(gk_norm_folder, filename)
@@ -51,7 +51,7 @@ def find_defects_by_comparison_Bolt(original_image, threshold, num_remove=1):
     print("最大相似度：", mse_max)
     print("平均相似度：", mse_avg)
 
-    have_defect = mse_avg <= threshold
+    have_defect = mse_max <= threshold
     return have_defect, mse_max
 
 
@@ -65,14 +65,15 @@ if __name__ == "__main__":
     FP = 0  # 假正例
     TN = 0  # 真负例
     FN = 0  # 假负例
-    threshold = 0.35
-    gk_folder = 'gk'  # 需要检测图像的文件夹
+    threshold = 0.37
+    gk_folder ='other_images' # 需要检测图像的文件夹
     defect_data = []  # 收集有缺陷的图像的相似度数据
     no_defect_data = []  # 收集无缺陷的图像的相似度数据
 
     start_time = time.time()
     total_images = 0
     defect_count = 0
+    t=0
 
     for filename in os.listdir(gk_folder):
         print(f'+++++++++++++++++{total_images}+++++++++++++++++++++++')
@@ -87,6 +88,7 @@ if __name__ == "__main__":
         # 收集数据
         if real_defect:
             defect_data.append(mse_sim)
+            t=t+1
         else:
             no_defect_data.append(mse_sim)
 
@@ -110,12 +112,17 @@ if __name__ == "__main__":
     single_time = (end_time - start_time) / total_images
     print(f'\n+++++++++++++++++++SUM++++++++++++++++++++++++')
     print(gk_folder, f"文件夹检测出{defect_count}/{total_images}个图片有缺陷\n每张图片用时{single_time}s")
-    # 计算TPR和FPR
-    TPR = TP / (TP + FN) if (TP + FN) != 0 else 0
-    FPR = FP / (FP + TN) if (FP + TN) != 0 else 0
+    # 计算 accuracy,Precision、Recall 和 F1 Score
+    accuracy = (TP + TN) / (TP + FP + TN + FN) if (TP + FP + TN + FN) != 0 else 0
+    precision = TP / (TP + FP) if (TP + FP) != 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) != 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) != 0 else 0
 
-    print(f"正确检出率（TPR）: {TPR:.2f}")
-    print(f"误检率（FPR）: {FPR:.2f}")
+    # 打印评估指标
+    print("准确率（Accuracy）: {:.2f}".format(accuracy))
+    print("精确度（Precision）: {:.2f}".format(precision))
+    print("召回率（Recall）: {:.2f}".format(recall))
+    print("F1 分数（F1 Score）: {:.2f}".format(f1))
 
     # 添加轻微的随机偏移量
     defect_labels_jittered = add_jitter([1] * len(defect_data))
@@ -146,5 +153,7 @@ if __name__ == "__main__":
     plt.title('Real Defect Detection Based on SSIM Similarity')
     plt.legend()
     plt.show()
+
+    print(t)
 
         
